@@ -1,0 +1,54 @@
+*filter
+#set default DROP policy
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT DROP [0:0]
+# Create New chains
+-N INPUTLOG
+-N FORWARDLOG
+-N OUTPUTLOG
+# Reroute traffic to new chains.
+-A OUTPUT -j OUTPUTLOG
+-A INPUT -j INPUTLOG
+-A FORWARD -j FORWARDLOG
+######################################################################################################
+# INPUTLOG RULES
+# Drops invalid packets
+-A INPUTLOG -m conntrack --ctstate INVALID -j DROP
+# Accept all related (related is used for connections ICMP msg.) and established connections
+-A INPUTLOG -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+#allow localhost interface
+-A INPUTLOG -d 127.0.0.0/8 -i !lo -j DROP -m comment --comment "drop all incoming to lo traffic"
+-A INPUTLOG -i lo -j ACCEPT -m comment --comment "localhost input rule" 
+# ICMP DDoS protection
+-A INPUTLOG -p icmp --icmp-type 8 -m limit --limit 50/sec -j LOG --log-prefix "Iptables ICMP 50 LIMIT!!! "
+# LOGS and Drop all left traffic
+-A INPUTLOG -m limit --limit 2/min -j LOG --log-prefix "Iptables INPUT CHAIN dropped: "
+-A INPUTLOG -j DROP
+######################################################################################################
+# OUTPUTLOG RULES
+# Drops invalid packets 
+-A OUTPUTLOG -m conntrack --ctstate INVALID -j DROP
+#allow localhost interface
+-A OUTPUTLOG -o lo -j ACCEPT -m comment --comment "localhost output rule"
+# Requests to DHCP server >>HOLD<<< 
+#-A OUTPUTLOG -p udp -m conntrack --ctstate NEW --dport 67:68 -j ACCEPT
+# Allow outbound DNS lookups
+-A OUTPUTLOG -p udp -m conntrack --ctstate NEW --dport 53 -j ACCEPT -m comment --comment "DNS port 53 out rule" 
+# Allow ping requests
+-A OUTPUTLOG -p icmp -m conntrack --ctstate NEW -j ACCEPT
+# allow outbound NTP (Network time protocol) requests
+-A OUTPUTLOG -p udp --dport 123 --sport 123 -m conntrack --ctstate NEW -j ACCEPT -m comment --comment "port 123 NTP" 
+# allow outbount HTTP/HTTP traffic
+-A OUTPUTLOG -p tcp -m multiport --dport 80,443 -j ACCEPT 
+# LOG and drop all traffic
+-A OUTPUTLOG -m limit --limit 2/min -j LOG --log-prefix "Iptables OUTPUT CHAIN dropped: " 
+-A OUTPUTLOG -j DROP
+#######################################################################################################
+# FORWARDLOG RULES
+# Drop invalid packets 
+-A FORWARDLOG -m conntrack --ctstate INVALID -j DROP
+# LOG and drop all traffic
+-A FORWARDLOG -m limit --limit 2/min -j LOG --log-prefix "Iptables FORWARD CHAIN dropped: "
+-A FORWARDLOG -j DROP
+COMMIT
