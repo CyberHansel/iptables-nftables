@@ -1,5 +1,5 @@
 IP TABLES COMMANDS
-sudo service iptables save
+sudo service iptables save  #redhat for Debian netfilter-persistance
 
 
 *filter
